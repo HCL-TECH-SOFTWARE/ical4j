@@ -51,6 +51,8 @@ import java.time.temporal.Temporal;
 import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Calendar.*;
 import static net.fortuna.ical4j.model.WeekDay.*;
@@ -239,13 +241,17 @@ public class RecurTest<T extends Temporal> extends TestCase {
     public void testGetDatesCount() {
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Australia/Melbourne"));
         List<T> dates = null;
+        Stream<T> datesStream;
         if (seed != null) {
             dates = recur.getDates(seed, periodStart, periodEnd);
+            datesStream = recur.getDatesAsStream(seed, periodStart, periodEnd);
         }
         else {
             dates = recur.getDates(periodStart, periodEnd);
+            datesStream = recur.getDatesAsStream(periodStart, periodEnd);
         }
         assertEquals(expectedCount, dates.size());
+        assertEquals(expectedCount, datesStream.count());
         // assertTrue("Date list exceeds expected count", dates.size() <= expectedCount);
     }
     
@@ -254,11 +260,13 @@ public class RecurTest<T extends Temporal> extends TestCase {
     public void testGetDatesMaxTime() {
         long t0 = System.currentTimeMillis();
         List<T> dates = recur.getDates(seed, periodStart, periodEnd);
+        Stream<T> datesStream = recur.getDatesAsStream(seed, periodStart, periodEnd);
         long dt = System.currentTimeMillis() - t0;
 
         String message = String.format("maxTime exceeded %dms", maxTime);
         assertEquals(message, maxTime, Math.max(dt, maxTime));
         assertEquals(expectedCount, dates.size());
+        assertEquals(expectedCount, datesStream.count());
     }
 
     /**
@@ -280,6 +288,7 @@ public class RecurTest<T extends Temporal> extends TestCase {
      */
     public void testGetDatesCalendarField() {
         List<T> dates = recur.getDates(periodStart, periodEnd);
+        Stream<T> datesStream = recur.getDatesAsStream(periodStart, periodEnd);
         Calendar cal;
         if ((value != null) && (value == Value.DATE)) {
             cal = getInstance(TimeZones.getDateTimeZone());
@@ -291,21 +300,22 @@ public class RecurTest<T extends Temporal> extends TestCase {
             cal.setTime(Date.from(TemporalAdapter.toLocalTime(date, ZoneId.systemDefault()).toInstant()));
             assertEquals(expectedCalendarValue, cal.get(calendarField));
         });
+        datesStream.forEach(date -> {
+            cal.setTime(Date.from(TemporalAdapter.toLocalTime(date, ZoneId.systemDefault()).toInstant()));
+            assertEquals(expectedCalendarValue, cal.get(calendarField));
+        });
     }
 
     /**
      * 
      */
     public void testGetDatesOrdering() {
-        List<T> dl1 = recur.getDates(periodStart, periodEnd);
-        T prev = null;
-        T event = null;
-        for(int i=0; i<dl1.size(); i++) {
-            prev = event;
-            event = dl1.get(i);
-            log.debug("Occurence "+i+" at "+event);
-            assertTrue(prev == null || !Instant.from(prev).isAfter(Instant.from(event)));
-        }
+        List<T> dates = recur.getDates(periodStart, periodEnd);
+        Stream<T> datesStream = recur.getDatesAsStream(periodStart, periodEnd);
+
+        List<T> sorted = dates.stream().sorted().collect(Collectors.toList());
+        assertEquals(sorted, dates);
+        assertEquals(sorted, datesStream.collect(Collectors.toList()));
     }
     
     /**
@@ -313,6 +323,7 @@ public class RecurTest<T extends Temporal> extends TestCase {
      */
     public void testGetDatesNotEmpty() {
         assertFalse(recur.getDates(periodStart, periodEnd).isEmpty());
+        assertTrue(recur.getDatesAsStream(periodStart, periodEnd).findAny().isPresent());
     }
     
     /**
@@ -320,7 +331,12 @@ public class RecurTest<T extends Temporal> extends TestCase {
      */
     public void testGetDatesTimeZone() {
         List<T> dates = recur.getDates(periodStart, periodEnd);
+        Stream<T> datesStream = recur.getDatesAsStream(periodStart, periodEnd);
+
         dates.forEach(date -> {
+            assertEquals(expectedTimeZone, ((ZonedDateTime) date).getZone());
+        });
+        datesStream.forEach(date -> {
             assertEquals(expectedTimeZone, ((ZonedDateTime) date).getZone());
         });
     }
@@ -372,6 +388,8 @@ public class RecurTest<T extends Temporal> extends TestCase {
         
         List<ZonedDateTime> dates = recur.getDates(seed, start, end);
         log.debug(dates.toString());
+        Stream<ZonedDateTime> datesStream = recur.getDatesAsStream(seed, start, end);
+        log.debug(datesStream.collect(Collectors.toList()).toString());
     }
 
     /*
@@ -467,6 +485,8 @@ public class RecurTest<T extends Temporal> extends TestCase {
         
         List<ZonedDateTime> dates = recur.getDates(start, end);
         log.debug(dates.toString());
+        Stream<ZonedDateTime> datesStream = recur.getDatesAsStream(start, end);
+        log.debug(datesStream.collect(Collectors.toList()).toString());
     }
     
     public void testMgmill2001() {
@@ -521,6 +541,11 @@ public class RecurTest<T extends Temporal> extends TestCase {
                 queryEndDate.getTime().toInstant());
 
         log.debug(dateList.toString());
+
+        Stream<Instant> datesStream = recur.getDatesAsStream(queryStartDate.getTime().toInstant(),
+                queryStartDate.getTime().toInstant(),
+                queryEndDate.getTime().toInstant());
+        log.debug(datesStream.collect(Collectors.toList()).toString());
     }
     
     /**
@@ -561,18 +586,20 @@ public class RecurTest<T extends Temporal> extends TestCase {
         ZonedDateTime start = ZonedDateTime.now().withYear(2018).withMonth(12).withDayOfMonth(16);
         ZonedDateTime end = start.plusDays(10);
         log.debug(everySecondDay.getDates(start, end).toString());
+        log.debug(everySecondDay.getDatesAsStream(start, end).collect(Collectors.toList()).toString());
 
         Recur<ZonedDateTime> everySecondDayUntil = new Recur.Builder<ZonedDateTime>().frequency(DAILY).until(end).interval(2).build();
         log.info(everySecondDayUntil.toString());
         log.debug(everySecondDayUntil.getDates(start, end).toString());
+        log.debug(everySecondDayUntil.getDatesAsStream(start, end).collect(Collectors.toList()).toString());
 
         Recur<ZonedDateTime> everySecondMonday = new Recur.Builder<ZonedDateTime>().frequency(WEEKLY).until(end)
                 .interval(2).dayList(new WeekDayList(MO)).build();
         log.debug(everySecondMonday.toString());
 
-        List<ZonedDateTime> dates = everySecondMonday.getDates(start, end);
-        log.debug(dates.toString());
-        
+        log.debug(everySecondMonday.getDates(start, end).toString());
+        log.debug(everySecondMonday.getDatesAsStream(start, end).collect(Collectors.toList()).toString());
+
         suite.addTest(new RecurTest<>(everySecondDayUntil, start, end, Value.DATE, 6));
         
         // testGetNextDate..

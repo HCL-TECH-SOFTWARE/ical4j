@@ -38,6 +38,7 @@ import spock.lang.Unroll
 
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.stream.Collectors
 
 import static java.lang.String.format
 import static net.fortuna.ical4j.model.WeekDay.*
@@ -437,6 +438,22 @@ class RecurSpec extends Specification {
         when: 'dates are generated for a period'
         def dates = recur.getDates((LocalDateTime) TemporalAdapter.parse('20220505T143700').temporal,
                 (LocalDateTime) TemporalAdapter.parse('20220519T145900').temporal)
+
+        then: 'result matches expected'
+        dates == DateList.parse('20220509T163700,20220509T163800,20220516T163700,20220516T163800').dates
+    }
+
+    def 'test getdates as stream'() {
+        given: 'a recurrence rule'
+        Recur<LocalDateTime> recur = new Recur.Builder<LocalDateTime>().frequency(Frequency.DAILY).interval(1)
+                .dayList(new WeekDayList(MO)).hourList(new NumberList('16'))
+                .minuteList(new NumberList('37,38'))
+                .until((LocalDateTime) TemporalAdapter.parse('20220519T165900').temporal).build()
+
+        when: 'dates are generated for a period'
+        def dates = recur.getDatesAsStream((LocalDateTime) TemporalAdapter.parse('20220505T143700').temporal,
+                (LocalDateTime) TemporalAdapter.parse('20220505T143700').temporal,
+                (LocalDateTime) TemporalAdapter.parse('20220519T145900').temporal, -1).collect(Collectors.toList())
 
         then: 'result matches expected'
         dates == DateList.parse('20220509T163700,20220509T163800,20220516T163700,20220516T163800').dates

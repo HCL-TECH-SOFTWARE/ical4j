@@ -9,6 +9,7 @@ zones.tab
 .classpath
 .project
 .settings/
+/.vscode
 out/
 **/zoneinfo/**/index.html
 **/zoneinfo/**/tz.availableIds
